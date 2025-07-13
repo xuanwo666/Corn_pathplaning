@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <!-- 引入 Leaflet 地图库 -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <title>路径规划系统</title>
+  <style>
+    /* 全局样式重置 */
+    * {
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+      font-family: "Microsoft YaHei", sans-serif;
+    }
+    body {
+      background: #f5f7fa; 
+      padding: 20px; 
+    }
+
+    /* 整体布局：地图在上，内容在下 */
+    .layout {
+      display: grid;
+      grid-template-rows: auto 1fr; /* 地图区自适应，内容区占满剩余高度 */
+      gap: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* 地图容器 */
+    #map {
+      height: 400px; /* 可根据需求调整高度 */
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    /* 下方内容区：左右分栏 */
+    .content {
+      display: grid;
+      grid-template-columns: 1fr 1fr; /* 左右两栏平分宽度 */
+      gap: 20px;
+    }
+
+    /* 通用卡片样式 */
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+    .card h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      position: relative;
+      padding-left: 12px;
+    }
+    .card h2::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 4px;
+      width: 4px;
+      height: 16px;
+      background: #2f54eb;
+    }
+
+    /* 表单组样式 */
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: inline-block;
+      width: 60px;
+      text-align: right;
+      margin-right: 8px;
+      color: #666;
+    }
+    .form-group input {
+      width: 120px;
+      padding: 6px 8px;
+      border: 1px solid #dcdcdc;
+      border-radius: 4px;
+      margin-right: 8px;
+    }
+
+    /* 按钮组样式 */
+    .btn-group {
+      margin-left: 70px;
+      margin-bottom: 10px;
+    }
+    .btn {
+      padding: 6px 12px;
+      border: 1px solid #dcdcdc;
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+      margin-right: 8px;
+      transition: all 0.3s ease;
+    }
+    .btn:hover {
+      background: #f2f2f2;
+    }
+
+    /* 点列表样式 */
+    .point-list {
+      margin-left: 70px;
+      border-left: 1px dashed #dcdcdc;
+      padding-left: 10px;
+      margin-bottom: 10px;
+    }
+    .point-item {
+      margin: 8px 0;
+    }
+
+    /* 结果表格 */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    table th, table td {
+      border: 1px solid #dcdcdc;
+      padding: 8px;
+      text-align: center;
+    }
+    table th {
+      background: #f8f9fa;
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <!-- 地图区 -->
+  <div id="map"></div>
+
+  <!-- 下方内容区 -->
+  <div class="content">
+    <!-- 左侧：边界点信息 -->
+    <div class="card" id="boundary-card">
+      <h2>边界点信息</h2>
+      <div class="point-list" id="boundary-points">
+        <!-- 初始点（可根据需求增减默认点） -->
+        <div class="point-item">
+          <div class="form-group">
+            <label>经度：</label>
+            <input type="number" step="any" placeholder="经度" class="lng" value="39.906650">
+            <label>纬度：</label>
+            <input type="number" step="any" placeholder="纬度" class="lat" value="116.402916">
+          </div>
+          <div class="btn-group">
+            <button class="btn get-location">获取</button>
+            <button class="btn del-point">删除</button>
+          </div>
+        </div>
+        <!-- 可继续添加默认点... -->
+      </div>
+      <div class="btn-group">
+        <button class="btn add-point">添加点</button>
+      </div>
+      <div class="btn-group" style="margin-left:70px;">
+        <button class="btn mode-btn" id="mode1">模式1</button>
+        <button class="btn mode-btn" id="mode2">模式2</button>
+      </div>
+    </div>
+
+    <!-- 右侧：路径点信息 + 结果 -->
+    <div class="card" id="path-card">
+      <h2>路径点信息（两点）</h2>
+      <div class="point-list" id="path-points">
+        <!-- 初始线（含两个点） -->
+        <div class="line-item">
+          <div class="point-item">
+            <div class="form-group">
+              <label>起点经度：</label>
+              <input type="number" step="any" placeholder="经度" class="lng" value="39.904220">
+              <label>起点纬度：</label>
+              <input type="number" step="any" placeholder="纬度" class="lat" value="116.392811">
+            </div>
+            <div class="btn-group">
+              <button class="btn get-location">获取</button>
+            </div>
+          </div>
+          <div class="point-item">
+            <div class="form-group">
+              <label>终点经度：</label>
+              <input type="number" step="any" placeholder="经度" class="lng" value="39.941941">
+              <label>终点纬度：</label>
+              <input type="number" step="any" placeholder="纬度" class="lat" value="116.408450">
+            </div>
+            <div class="btn-group">
+              <button class="btn get-location">获取</button>
+            </div>
+          </div>
+          <div class="btn-group" style="margin-left:70px;">
+            <button class="btn del-line">删除线</button>
+          </div>
+        </div>
+        <!-- 可继续添加默认线... -->
+      </div>
+      <div class="btn-group">
+        <button class="btn add-line">添加线</button>
+      </div>
+      <div class="btn-group" style="margin-left:70px;">
+        <button class="btn" id="generate-btn">开始生成</button>
+      </div>
+
+      <!-- 结果表格 -->
+      <div class="result-table">
+        <table>
+          <thead>
+          <tr>
+            <th>序号</th>
+            <th>经度</th>
+            <th>纬度</th>
+            <th>命令</th>
+          </tr>
+          </thead>
+          <tbody id="result-body">
+          <!-- 动态生成内容 -->
+          <tr>
+            <td>1</td>
+            <td>39.904220</td>
+            <td>116.392811</td>
+            <td>待定义</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>39.941941</td>
+            <td>116.408450</td>
+            <td>待定义</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ----------------- 地图初始化（Leaflet） -----------------
+  if (document.getElementById('map')) {
+    const map = L.map('map').setView([39.9, 116.4], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+  }
+
+  // ----------------- 通用工具函数 -----------------
+  function getLocation(inputLng, inputLat) {
+    if (navigator.geolocation) {
+      // 显示加载状态
+      inputLng.value = '获取中...';
+      inputLat.value = '获取中...';
+      
+      navigator.geolocation.getCurrentPosition(
+        function(position) {
+          // 成功获取位置
+          const lng = position.coords.longitude;
+          const lat = position.coords.latitude;
+          inputLng.value = lng.toFixed(6);
+          inputLat.value = lat.toFixed(6);
+          
+          console.log('获取到真实位置:', { lng, lat });
+          console.log('精度:', position.coords.accuracy, '米');
+        },
+        function(error) {
+          // 获取失败的处理
+          let errorMsg = '';
+          switch(error.code) {
+            case error.PERMISSION_DENIED:
+              errorMsg = '用户拒绝了位置请求';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMsg = '位置信息不可用';
+              break;
+            case error.TIMEOUT:
+              errorMsg = '请求超时';
+              break;
+            default:
+              errorMsg = '未知错误';
+              break;
+          }
+          
+          alert('获取位置失败: ' + errorMsg);
+          inputLng.value = '';
+          inputLat.value = '';
+          console.error('地理位置错误:', error);
+        },
+        {
+          enableHighAccuracy: true,  // 启用高精度
+          timeout: 10000,           // 10秒超时
+          maximumAge: 60000         // 缓存1分钟
+        }
+      );
+    } else {
+      alert('此浏览器不支持地理位置功能');
+    }
+  }
+
+  // ----------------- 边界点逻辑 -----------------
+  // 添加点
+  document.querySelector('.add-point').addEventListener('click', () => {
+    const pointList = document.getElementById('boundary-points');
+    const newItem = document.createElement('div');
+    newItem.className = 'point-item';
+    newItem.innerHTML = `
+      <div class="form-group">
+        <label>经度：</label>
+        <input type="number" step="any" placeholder="经度" class="lng">
+        <label>纬度：</label>
+        <input type="number" step="any" placeholder="纬度" class="lat">
+      </div>
+      <div class="btn-group">
+        <button class="btn get-location">获取</button>
+        <button class="btn del-point">删除</button>
+      </div>
+    `;
+    pointList.appendChild(newItem);
+  });
+
+  // 删除点
+  document.getElementById('boundary-points').addEventListener('click', (e) => {
+    if (e.target.classList.contains('del-point')) {
+      const item = e.target.closest('.point-item');
+      if (item.parentNode.children.length > 1) { // 至少保留1个点
+        item.remove();
+      }
+    }
+  });
+
+  // 获取经纬度（边界点）
+  document.getElementById('boundary-points').addEventListener('click', (e) => {
+    if (e.target.classList.contains('get-location')) {
+      const inputLng = e.target.closest('.point-item').querySelector('.lng');
+      const inputLat = e.target.closest('.point-item').querySelector('.lat');
+      getLocation(inputLng, inputLat);
+    }
+  });
+
+  // ----------------- 路径点逻辑 -----------------
+  // 添加线（含两个点）
+  document.querySelector('.add-line').addEventListener('click', () => {
+    const pointList = document.getElementById('path-points');
+    const newLine = document.createElement('div');
+    newLine.className = 'line-item';
+    newLine.innerHTML = `
+      <div class="point-item">
+        <div class="form-group">
+          <label>起点经度：</label>
+          <input type="number" step="any" placeholder="经度" class="lng">
+          <label>起点纬度：</label>
+          <input type="number" step="any" placeholder="纬度" class="lat">
+        </div>
+        <div class="btn-group">
+          <button class="btn get-location">获取</button>
+        </div>
+      </div>
+      <div class="point-item">
+        <div class="form-group">
+          <label>终点经度：</label>
+          <input type="number" step="any" placeholder="经度" class="lng">
+          <label>终点纬度：</label>
+          <input type="number" step="any" placeholder="纬度" class="lat">
+        </div>
+        <div class="btn-group">
+          <button class="btn get-location">获取</button>
+        </div>
+      </div>
+      <div class="btn-group" style="margin-left:70px;">
+        <button class="btn del-line">删除线</button>
+      </div>
+    `;
+    pointList.appendChild(newLine);
+  });
+
+  // 删除线
+  document.getElementById('path-points').addEventListener('click', (e) => {
+    if (e.target.classList.contains('del-line')) {
+      const line = e.target.closest('.line-item');
+      if (line.parentNode.children.length > 1) { // 至少保留1条线
+        line.remove();
+      }
+    }
+  });
+
+  // 获取经纬度（路径点）
+  document.getElementById('path-points').addEventListener('click', (e) => {
+    if (e.target.classList.contains('get-location')) {
+      const inputLng = e.target.closest('.point-item').querySelector('.lng');
+      const inputLat = e.target.closest('.point-item').querySelector('.lat');
+      getLocation(inputLng, inputLat);
+    }
+  });
+
+  // ----------------- 预留逻辑 -----------------
+  // 模式按钮
+  document.getElementById('mode1').addEventListener('click', () => {
+    alert('模式1逻辑待实现');
+  });
+  document.getElementById('mode2').addEventListener('click', () => {
+    alert('模式2逻辑待实现');
+  });
+
+  // 开始生成
+  document.getElementById('generate-btn').addEventListener('click', () => {
+    // 1. 收集边界点数据
+    const boundaryPoints = [];
+    document.querySelectorAll('#boundary-points .point-item').forEach(item => {
+      boundaryPoints.push({
+        lng: item.querySelector('.lng').value,
+        lat: item.querySelector('.lat').value
+      });
+    });
+
+    // 2. 收集路径线数据
+    const pathLines = [];
+    document.querySelectorAll('#path-points .line-item').forEach(line => {
+      const start = line.querySelectorAll('.point-item')[0];
+      const end = line.querySelectorAll('.point-item')[1];
+      pathLines.push({
+        start: {
+          lng: start.querySelector('.lng').value,
+          lat: start.querySelector('.lat').value
+        },
+        end: {
+          lng: end.querySelector('.lng').value,
+          lat: end.querySelector('.lat').value
+        }
+      });
+    });
+
+    // 3. 模拟结果生成（实际需替换为真实算法）
+    const resultBody = document.getElementById('result-body');
+    resultBody.innerHTML = ''; // 清空旧数据
+
+    pathLines.forEach((line, index) => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${index + 1}</td>
+        <td>${line.start.lng}</td>
+        <td>${line.start.lat}</td>
+        <td>待定义</td>
+      `;
+      resultBody.appendChild(row);
+    });
+
+    alert('路径生成逻辑待完善，当前仅模拟结果展示');
+  });
+</script>
+</body>
+</html>
