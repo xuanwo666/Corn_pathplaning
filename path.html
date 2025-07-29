@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <!-- 引入 Leaflet 地图库 -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <title>路径规划系统</title>
+  <style>
+    /* 保持原有的CSS样式 */
+    * {
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+      font-family: "Microsoft YaHei", sans-serif;
+    }
+    body {
+      background: #f5f7fa; 
+      padding: 20px; 
+    }
+
+    .layout {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    #map {
+      height: 400px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+    .card h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      position: relative;
+      padding-left: 12px;
+    }
+    .card h2::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 4px;
+      width: 4px;
+      height: 16px;
+      background: #2f54eb;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: inline-block;
+      width: 60px;
+      text-align: right;
+      margin-right: 8px;
+      color: #666;
+    }
+    .form-group input {
+      width: 120px;
+      padding: 6px 8px;
+      border: 1px solid #dcdcdc;
+      border-radius: 4px;
+      margin-right: 8px;
+    }
+
+    .btn-group {
+      margin-left: 70px;
+      margin-bottom: 10px;
+    }
+    .btn {
+      padding: 6px 12px;
+      border: 1px solid #dcdcdc;
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+      margin-right: 8px;
+    }
+    .btn:hover {
+      background: #f0f0f0;
+    }
+    .btn.active {
+      background: #2f54eb;
+      color: #fff;
+      border-color: #2f54eb;
+    }
+
+    .point-item, .line-item {
+      border: 1px solid #e8e8e8;
+      border-radius: 4px;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: #fafafa;
+    }
+
+    .result-table {
+      margin-top: 20px;
+    }
+    .result-table table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .result-table th, .result-table td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+    .result-table th {
+      background: #f5f5f5;
+    }
+
+    /* 新增模式选择器样式 */
+    .mode-selector {
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .mode-selector label {
+      font-weight: 600;
+      margin-right: 10px;
+    }
+    .mode-selector select {
+      padding: 8px 12px;
+      border: 1px solid #dcdcdc;
+      border-radius: 4px;
+      background: #fff;
+    }
+        /* 临时API接口样式 */
+        .url-display {
+      background: #f6f8fa;
+      border: 1px solid #d1d9e0;
+      border-radius: 4px;
+      padding: 8px;
+      margin: 8px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .url-display code {
+      flex: 1;
+      background: none;
+      border: none;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      word-break: break-all;
+    }
+    .btn-copy {
+      padding: 4px 8px;
+      font-size: 12px;
+      background: #2f54eb;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .btn-copy:hover {
+      background: #1d39c4;
+    }
+    .success {
+      background: #f6ffed;
+      border: 1px solid #b7eb8f;
+      color: #52c41a;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .error {
+      background: #fff2f0;
+      border: 1px solid #ffccc7;
+      color: #ff4d4f;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .loading {
+      background: #e6f7ff;
+      border: 1px solid #91d5ff;
+      color: #1890ff;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .countdown {
+      font-weight: bold;
+      margin-top: 8px;
+    }
+    /* 状态指示器 */
+    .status-indicator {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      margin-left: 10px;
+    }
+    .status-success {
+      background: #f6ffed;
+      color: #52c41a;
+      border: 1px solid #b7eb8f;
+    }
+    .status-error {
+      background: #fff2f0;
+      color: #ff4d4f;
+      border: 1px solid #ffccc7;
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- 地图区域 -->
+  <div id="map"></div>
+
+  <!-- 模式选择器 -->
+  <div class="mode-selector">
+    <label>选择算法模式：</label>
+    <select id="modeSelect">
+      <option value="0">模式1 - 凸包多边形</option>
+      <option value="1">模式2 - 按次序输入</option>
+    </select>
+    <span id="modeStatus" class="status-indicator"></span>
+  </div>
+
+  <!-- 下方内容区 -->
+  <div class="content">
+    <!-- 左侧：边界点信息 -->
+    <div class="card">
+      <h2>边界点信息</h2>
+      <div id="boundary-points">
+        <div class="point-item">
+          <div class="form-group">
+            <label>经度：</label>
+            <input type="number" step="any" placeholder="经度" class="lng">
+            <label>纬度：</label>
+            <input type="number" step="any" placeholder="纬度" class="lat">
+          </div>
+          <div class="btn-group">
+            <button class="btn get-location">获取</button>
+            <button class="btn del-point">删除</button>
+          </div>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn add-point">添加点</button>
+      </div>
+      <span id="boundaryStatus" class="status-indicator"></span>
+    </div>
+
+    <!-- 右侧：路径点信息（玉米行） -->
+    <div class="card">
+      <h2>玉米行信息</h2>
+      <div id="path-points">
+        <div class="line-item">
+          <div class="point-item">
+            <div class="form-group">
+              <label>起点经度：</label>
+              <input type="number" step="any" placeholder="经度" class="lng">
+              <label>起点纬度：</label>
+              <input type="number" step="any" placeholder="纬度" class="lat">
+            </div>
+            <div class="btn-group">
+              <button class="btn get-location">获取</button>
+            </div>
+          </div>
+          <div class="point-item">
+            <div class="form-group">
+              <label>终点经度：</label>
+              <input type="number" step="any" placeholder="经度" class="lng">
+              <label>终点纬度：</label>
+              <input type="number" step="any" placeholder="纬度" class="lat">
+            </div>
+            <div class="btn-group">
+              <button class="btn get-location">获取</button>
+            </div>
+          </div>
+          <div class="btn-group" style="margin-left:70px;">
+            <button class="btn del-line">删除线</button>
+          </div>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn add-line">添加线</button>
+      </div>
+      <div class="btn-group" style="margin-left:70px;">
+        <button class="btn" id="preview-btn" onclick="previewData()">预览边界和玉米行</button>
+        <button class="btn" id="generate-btn">开始生成</button>
+      </div>
+      <!-- 在现有的"开始生成"按钮后添加 -->
+      <div class="btn-group" style="margin-left:70px; margin-top: 20px;">
+        <h3 style="margin-bottom: 10px; color: #2f54eb;">🚀 Jetson Nano 数据传输</h3>
+        <div class="form-group">
+          <label>接口名称：</label>
+          <input type="text" id="endpoint-name" placeholder="例如: track, path" maxlength="20" style="width: 150px;">
+          <button class="btn" onclick="createTempEndpoint()" style="background: #52c41a; color: white;">创建临时接口</button>
+        </div>
+        <div id="temp-endpoint-result" style="display: none; margin-top: 10px; padding: 10px; border-radius: 4px;"></div>
+        <div style="font-size: 12px; color: #666; margin-top: 5px;">
+          <div>• 接口将在60秒后自动销毁</div>
+          <div>• 只能包含字母、数字和下划线</div>
+          <div>• Jetson Nano可通过生成的URL获取数据</div>
+        </div>
+      </div>
+      <span id="cornStatus" class="status-indicator"></span>
+
+      <!-- 结果表格 -->
+      <div class="result-table">
+        <table>
+          <thead>
+          <tr>
+            <th>序号</th>
+            <th>经度</th>
+            <th>纬度</th>
+            <th>命令</th>
+          </tr>
+          </thead>
+          <tbody id="result-body">
+          <!-- 动态生成内容 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 配置后端API地址（使用内网穿透地址）
+  const API_BASE_URL = 'https://www-api-map.r68031028.nyat.app:36439/api';  // 内网穿透地址
+  // const API_BASE_URL = 'http://localhost:8080/api';  // 本地测试地址（已注释）
+
+  let currentMode = 0;
+  let map;
+
+  // ----------------- 地图初始化（Leaflet） -----------------
+  // // 将这段代码：
+  // if (document.getElementById('map')) {
+  //   map = L.map('map').setView([39.9, 116.4], 13);
+  //   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  //     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  //   }).addTo(map);
+  // }
+  
+  // 替换为以下完整代码：
+  if (document.getElementById('map')) {
+    // 移除默认署名控件，然后添加自定义的
+    map = L.map('map', {
+      attributionControl: false
+    }).setView([39.9, 116.4], 13);
+    
+    // 添加自定义署名控件
+    L.control.attribution({
+      prefix: false,  // 移除"Leaflet"前缀
+      position: 'bottomright'
+    }).addTo(map);
+    
+    // 定义多个地图图层（都无需API密钥）
+    const mapLayers = {
+      'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }),
+      
+      'Google卫星图': L.tileLayer('https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        maxZoom: 21,
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '&copy; Google Maps'
+      }),
+      
+      'Google混合图': L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        maxZoom: 21,
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '&copy; Google Maps'
+      }),
+      
+      'Google地形图': L.tileLayer('https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', {
+        maxZoom: 21,
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '&copy; Google Maps'
+      }),
+      
+      'Google道路图': L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        maxZoom: 21,
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '&copy; Google Maps'
+      })
+    };
+    
+    // 默认使用Google卫星图（高分辨率）
+    mapLayers['Google卫星图'].addTo(map);
+    
+    // 添加图层控制器到地图右上角
+    L.control.layers(mapLayers, null, {
+      position: 'topright',
+      collapsed: false  // 展开显示所有图层选项
+    }).addTo(map);
+  }
+
+  // ----------------- API交互函数 -----------------
+  // 设置状态指示器
+  function setStatus(elementId, type, message) {
+    const element = document.getElementById(elementId);
+    element.className = `status-indicator status-${type}`;
+    element.textContent = message;
+  }
+
+  // 模式切换
+  async function changeMode() {
+    const modeSelect = document.getElementById('modeSelect');
+    currentMode = parseInt(modeSelect.value);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/set_mode`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mode: currentMode })
+      });
+      
+      const result = await response.json();
+      if (result.status === 'success') {
+        setStatus('modeStatus', 'success', result.message);
+      } else {
+        setStatus('modeStatus', 'error', result.message);
+      }
+    } catch (error) {
+      setStatus('modeStatus', 'error', '模式切换失败');
+      console.error('模式切换失败:', error);
+    }
+  }
+
+  // 保存边界点到后端
+  async function saveBoundaryPoints() {
+    const points = [];
+    
+    document.querySelectorAll('#boundary-points .point-item').forEach(item => {
+      const lng = item.querySelector('.lng').value;
+      const lat = item.querySelector('.lat').value;
+      if (lng && lat) {
+        points.push({
+          lng: parseFloat(lng),
+          lat: parseFloat(lat)
+        });
+      }
+    });
+    
+    if (points.length === 0) {
+      setStatus('boundaryStatus', 'error', '请添加边界点');
+      return false;
+    }
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/save_boundary_points`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ points: points })
+      });
+      
+      const result = await response.json();
+      if (result.status === 'success') {
+        setStatus('boundaryStatus', 'success', `已保存${points.length}个边界点`);
+        return true;
+      } else {
+        setStatus('boundaryStatus', 'error', result.message);
+        return false;
+      }
+    } catch (error) {
+      setStatus('boundaryStatus', 'error', '保存失败');
+      console.error('保存边界点失败:', error);
+      return false;
+    }
+  }
+
+  // 保存玉米行到后端
+  async function saveCornLines() {
+    const lines = [];
+    
+    document.querySelectorAll('#path-points .line-item').forEach(line => {
+      const startPoint = line.querySelectorAll('.point-item')[0];
+      const endPoint = line.querySelectorAll('.point-item')[1];
+      
+      const startLng = startPoint.querySelector('.lng').value;
+      const startLat = startPoint.querySelector('.lat').value;
+      const endLng = endPoint.querySelector('.lng').value;
+      const endLat = endPoint.querySelector('.lat').value;
+      
+      if (startLng && startLat && endLng && endLat) {
+        lines.push({
+          start_lng: parseFloat(startLng),
+          start_lat: parseFloat(startLat),
+          end_lng: parseFloat(endLng),
+          end_lat: parseFloat(endLat)
+        });
+      }
+    });
+    
+    if (lines.length === 0) {
+      setStatus('cornStatus', 'error', '请添加玉米行');
+      return false;
+    }
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/save_corn_lines`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ lines: lines })
+      });
+      
+      const result = await response.json();
+      if (result.status === 'success') {
+        setStatus('cornStatus', 'success', `已保存${lines.length}条玉米行`);
+        return true;
+      } else {
+        setStatus('cornStatus', 'error', result.message);
+        return false;
+      }
+    } catch (error) {
+      setStatus('cornStatus', 'error', '保存失败');
+      console.error('保存玉米行失败:', error);
+      return false;
+    }
+  }
+
+  // 生成路径
+  // 在地图上显示路径点、玉米行和边界线
+  function displayPathOnMap(data) {
+    // 清除之前的所有标记和线条
+    map.eachLayer(function(layer) {
+      if (layer instanceof L.Marker && (layer.options.type === 'path' || layer.options.type === 'corn' || layer.options.type === 'boundary')) {
+        map.removeLayer(layer);
+      }
+      if (layer instanceof L.Polyline && (layer.options.type === 'path' || layer.options.type === 'corn' || layer.options.type === 'boundary')) {
+        map.removeLayer(layer);
+      }
+    });
+    
+    // 显示路径点
+    if (data.points && data.points.length > 0) {
+      data.points.forEach((point, index) => {
+        const marker = L.marker([point.lat, point.lng], {
+          type: 'path',
+          icon: L.divIcon({
+            className: 'path-marker',
+            html: `<div style="background: green; color: white; border-radius: 50%; width: 20px; height: 20px; text-align: center; line-height: 20px; font-size: 12px;">${point.index}</div>`,
+            iconSize: [20, 20]
+          })
+        }).addTo(map);
+        
+        marker.bindPopup(`点${point.index}: ${point.command}<br>经度: ${point.lng.toFixed(6)}<br>纬度: ${point.lat.toFixed(6)}`);
+      });
+      
+      // 绘制路径线
+      if (data.points.length > 1) {
+        const pathCoords = data.points.map(p => [p.lat, p.lng]);
+        L.polyline(pathCoords, {color: 'green', weight: 3, type: 'path'}).addTo(map);
+      }
+    }
+    
+    // 显示玉米行
+    if (data.corn_lines && data.corn_lines.length > 0) {
+      data.corn_lines.forEach((line, index) => {
+        const coords = [
+          [line.start_lat, line.start_lng],
+          [line.end_lat, line.end_lng]
+        ];
+        
+        const polyline = L.polyline(coords, {
+          color: 'orange',
+          weight: 2,
+          type: 'corn',
+          opacity: 0.8
+        }).addTo(map);
+        
+        polyline.bindPopup(`玉米行 ${line.id}<br>起点: ${line.start_lng.toFixed(6)}, ${line.start_lat.toFixed(6)}<br>终点: ${line.end_lng.toFixed(6)}, ${line.end_lat.toFixed(6)}`);
+        
+        // 添加起点标记
+        L.marker([line.start_lat, line.start_lng], {
+          type: 'corn',
+          icon: L.divIcon({
+            className: 'corn-marker',
+            html: `<div style="background: orange; color: white; border-radius: 50%; width: 18px; height: 18px; text-align: center; line-height: 18px; font-size: 11px;">C${line.id}</div>`,
+            iconSize: [18, 18]
+          })
+        }).addTo(map).bindPopup(`玉米行${line.id}起点`);
+        
+        // 添加终点标记
+        L.marker([line.end_lat, line.end_lng], {
+          type: 'corn',
+          icon: L.divIcon({
+            className: 'corn-marker-end',
+            html: `<div style="background: darkorange; color: white; border-radius: 50%; width: 18px; height: 18px; text-align: center; line-height: 18px; font-size: 11px;">E${line.id}</div>`,
+            iconSize: [18, 18]
+          })
+        }).addTo(map).bindPopup(`玉米行${line.id}终点`);
+      });
+    }
+    
+    // 显示边界线
+    if (data.boundary_lines && data.boundary_lines.length > 0) {
+      data.boundary_lines.forEach((line, index) => {
+        const coords = [
+          [line.start_lat, line.start_lng],
+          [line.end_lat, line.end_lng]
+        ];
+        
+        const polyline = L.polyline(coords, {
+          color: 'red',
+          weight: 2,
+          type: 'boundary',
+          opacity: 0.8,
+          dashArray: '5, 5'  // 虚线样式
+        }).addTo(map);
+        
+        polyline.bindPopup(`边界线 ${line.id}<br>方程: ${line.A.toFixed(4)}x + ${line.B.toFixed(4)}y + ${line.C.toFixed(4)} = 0<br>起点: ${line.start_lng.toFixed(6)}, ${line.start_lat.toFixed(6)}<br>终点: ${line.end_lng.toFixed(6)}, ${line.end_lat.toFixed(6)}`);
+        
+        // 添加边界线标记
+        const midLat = (line.start_lat + line.end_lat) / 2;
+        const midLng = (line.start_lng + line.end_lng) / 2;
+        L.marker([midLat, midLng], {
+          type: 'boundary',
+          icon: L.divIcon({
+            className: 'boundary-marker',
+            html: `<div style="background: red; color: white; border-radius: 3px; width: 15px; height: 15px; text-align: center; line-height: 15px; font-size: 10px;">B${line.id}</div>`,
+            iconSize: [15, 15]
+          })
+        }).addTo(map).bindPopup(`边界线${line.id}`);
+      });
+    }
+    
+    // 自动调整地图视野以包含所有元素
+    const allCoords = [];
+    
+    if (data.points) {
+      data.points.forEach(p => allCoords.push([p.lat, p.lng]));
+    }
+    if (data.corn_lines) {
+      data.corn_lines.forEach(line => {
+        allCoords.push([line.start_lat, line.start_lng]);
+        allCoords.push([line.end_lat, line.end_lng]);
+      });
+    }
+    if (data.boundary_lines) {
+      data.boundary_lines.forEach(line => {
+        allCoords.push([line.start_lat, line.start_lng]);
+        allCoords.push([line.end_lat, line.end_lng]);
+      });
+    }
+    
+    if (allCoords.length > 0) {
+      const group = new L.featureGroup(allCoords.map(coord => L.marker(coord)));
+      map.fitBounds(group.getBounds().pad(0.1));
+    }
+  }
+
+  // 修改generatePath函数中的调用
+  async function generatePath() {
+    // 先保存数据
+    const boundaryOk = await saveBoundaryPoints();
+    const cornOk = await saveCornLines();
+    
+    if (!boundaryOk || !cornOk) {
+      alert('请先完善边界点和玉米行信息');
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/generate_path`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      const result = await response.json();
+      
+      if (result.status === 'success') {
+        // 更新结果表格
+        updateResultTable(result.data.points);
+        
+        // 在地图上显示路径点、玉米行和边界线
+        displayPathOnMap(result.data);
+        
+        const summary = `路径规划完成！\n- 生成了 ${result.data.points.length} 个路径点\n- 显示了 ${result.data.corn_lines.length} 条玉米行\n- 显示了 ${result.data.boundary_lines.length} 条边界线`;
+        alert(summary);
+      } else {
+        alert('路径规划失败: ' + result.message);
+      }
+    } catch (error) {
+      console.error('生成路径失败:', error);
+      alert('生成路径失败，请检查网络连接和后端服务');
+    }
+  }
+
+  // 更新结果表格
+  function updateResultTable(points) {
+    const tbody = document.getElementById('result-body');
+    tbody.innerHTML = '';
+    
+    points.forEach(point => {
+      const row = tbody.insertRow();
+      row.insertCell(0).textContent = point.index;
+      row.insertCell(1).textContent = point.lng.toFixed(6);
+      row.insertCell(2).textContent = point.lat.toFixed(6);
+      row.insertCell(3).textContent = point.command;
+    });
+  }
+
+  // ----------------- 原有的UI交互逻辑 -----------------
+  // 改进的定位函数
+  function getLocation(inputLng, inputLat) {
+    if (navigator.geolocation) {
+      inputLng.value = '获取中...';
+      inputLat.value = '获取中...';
+      
+      // 使用watchPosition获取实时位置
+      const watchId = navigator.geolocation.watchPosition(
+        function(position) {
+          const lng = position.coords.longitude;
+          const lat = position.coords.latitude;
+          const accuracy = position.coords.accuracy;
+          const timestamp = position.timestamp;
+          
+          inputLng.value = lng.toFixed(9);  
+          inputLat.value = lat.toFixed(9);
+          
+          console.log('实时位置:', { 
+            lng, 
+            lat, 
+            accuracy: accuracy + 'm',
+            timestamp: new Date(timestamp).toLocaleString()
+          });
+          
+          // 获取一次后停止监听（可选）
+          navigator.geolocation.clearWatch(watchId);
+        },
+        function(error) {
+          console.error('定位错误:', error);
+          inputLng.value = '';
+          inputLat.value = '';
+          navigator.geolocation.clearWatch(watchId);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 20000,
+          maximumAge: 0
+        }
+      );
+      
+      // 20秒后自动停止监听
+      setTimeout(() => {
+        navigator.geolocation.clearWatch(watchId);
+      }, 20000);
+    }
+  }
+
+  // 事件监听器
+  document.getElementById('modeSelect').addEventListener('change', changeMode);
+  document.getElementById('generate-btn').addEventListener('click', generatePath);
+
+  // 添加点
+  document.querySelector('.add-point').addEventListener('click', () => {
+    const pointList = document.getElementById('boundary-points');
+    const newItem = document.createElement('div');
+    newItem.className = 'point-item';
+    newItem.innerHTML = `
+      <div class="form-group">
+        <label>经度：</label>
+        <input type="number" step="any" placeholder="经度" class="lng">
+        <label>纬度：</label>
+        <input type="number" step="any" placeholder="纬度" class="lat">
+      </div>
+      <div class="btn-group">
+        <button class="btn get-location">获取</button>
+        <button class="btn del-point">删除</button>
+      </div>
+    `;
+    pointList.appendChild(newItem);
+  });
+
+  // 删除点
+  document.getElementById('boundary-points').addEventListener('click', (e) => {
+    if (e.target.classList.contains('del-point')) {
+      const item = e.target.closest('.point-item');
+      if (item.parentNode.children.length > 1) {
+        item.remove();
+      }
+    }
+  });
+
+  // 获取经纬度（边界点）
+  document.getElementById('boundary-points').addEventListener('click', (e) => {
+    if (e.target.classList.contains('get-location')) {
+      const inputLng = e.target.closest('.point-item').querySelector('.lng');
+      const inputLat = e.target.closest('.point-item').querySelector('.lat');
+      getLocation(inputLng, inputLat);
+    }
+  });
+
+  // 添加线
+  document.querySelector('.add-line').addEventListener('click', () => {
+    const pointList = document.getElementById('path-points');
+    const newLine = document.createElement('div');
+    newLine.className = 'line-item';
+    newLine.innerHTML = `
+      <div class="point-item">
+        <div class="form-group">
+          <label>起点经度：</label>
+          <input type="number" step="any" placeholder="经度" class="lng">
+          <label>起点纬度：</label>
+          <input type="number" step="any" placeholder="纬度" class="lat">
+        </div>
+        <div class="btn-group">
+          <button class="btn get-location">获取</button>
+        </div>
+      </div>
+      <div class="point-item">
+        <div class="form-group">
+          <label>终点经度：</label>
+          <input type="number" step="any" placeholder="经度" class="lng">
+          <label>终点纬度：</label>
+          <input type="number" step="any" placeholder="纬度" class="lat">
+        </div>
+        <div class="btn-group">
+          <button class="btn get-location">获取</button>
+        </div>
+      </div>
+      <div class="btn-group" style="margin-left:70px;">
+        <button class="btn del-line">删除线</button>
+      </div>
+    `;
+    pointList.appendChild(newLine);
+  });
+
+  // 删除线
+  document.getElementById('path-points').addEventListener('click', (e) => {
+    if (e.target.classList.contains('del-line')) {
+      const line = e.target.closest('.line-item');
+      if (line.parentNode.children.length > 1) {
+        line.remove();
+      }
+    }
+  });
+
+  // 获取经纬度（路径点）
+  document.getElementById('path-points').addEventListener('click', (e) => {
+    if (e.target.classList.contains('get-location')) {
+      const inputLng = e.target.closest('.point-item').querySelector('.lng');
+      const inputLat = e.target.closest('.point-item').querySelector('.lat');
+      getLocation(inputLng, inputLat);
+    }
+  });
+
+  // 在现有的JavaScript代码中添加以下函数
+
+// 预览边界和玉米行
+async function previewData() {
+  // 先保存数据
+  const boundaryOk = await saveBoundaryPoints();
+  const cornOk = await saveCornLines();
+  
+  if (!boundaryOk || !cornOk) {
+    alert('请先完善边界点和玉米行信息');
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${API_BASE_URL}/preview_data`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    const result = await response.json();
+    
+    if (result.status === 'success') {
+      // 在地图上显示边界和玉米行（不显示路径）
+      displayPreviewOnMap(result.data);
+      
+      const summary = `数据预览完成！\n- 显示了 ${result.data.corn_lines.length} 条玉米行\n- 显示了 ${result.data.boundary_lines.length} 条边界线\n\n现在可以检查数据是否正确，然后进行路径规划。`;
+      alert(summary);
+    } else {
+      alert('数据预览失败: ' + result.message);
+    }
+  } catch (error) {
+    console.error('预览数据失败:', error);
+    alert('预览数据失败，请检查网络连接和后端服务');
+  }
+}
+
+// 在地图上显示预览数据（只显示边界和玉米行）
+function displayPreviewOnMap(data) {
+  // 清除之前的所有标记和线条
+  map.eachLayer(function(layer) {
+    if (layer instanceof L.Marker && (layer.options.type === 'path' || layer.options.type === 'corn' || layer.options.type === 'boundary')) {
+      map.removeLayer(layer);
+    }
+    if (layer instanceof L.Polyline && (layer.options.type === 'path' || layer.options.type === 'corn' || layer.options.type === 'boundary')) {
+      map.removeLayer(layer);
+    }
+  });
+  
+  // 显示玉米行
+  if (data.corn_lines && data.corn_lines.length > 0) {
+    data.corn_lines.forEach((line, index) => {
+      const coords = [
+        [line.start_lat, line.start_lng],
+        [line.end_lat, line.end_lng]
+      ];
+      
+      const polyline = L.polyline(coords, {
+        color: 'orange',
+        weight: 3,
+        type: 'corn',
+        opacity: 0.9
+      }).addTo(map);
+      
+      polyline.bindPopup(`玉米行 ${line.id}<br>起点: ${line.start_lng.toFixed(6)}, ${line.start_lat.toFixed(6)}<br>终点: ${line.end_lng.toFixed(6)}, ${line.end_lat.toFixed(6)}`);
+      
+      // 添加起点和终点标记
+      L.marker([line.start_lat, line.start_lng], {
+        type: 'corn',
+        icon: L.divIcon({
+          className: 'corn-marker',
+          html: `<div style="background: orange; color: white; border-radius: 50%; width: 18px; height: 18px; text-align: center; line-height: 18px; font-size: 11px;">C${line.id}</div>`,
+          iconSize: [18, 18]
+        })
+      }).addTo(map).bindPopup(`玉米行${line.id}起点`);
+    });
+  }
+  
+  // 显示边界线
+  if (data.boundary_lines && data.boundary_lines.length > 0) {
+    data.boundary_lines.forEach((line, index) => {
+      const coords = [
+        [line.start_lat, line.start_lng],
+        [line.end_lat, line.end_lng]
+      ];
+      
+      const polyline = L.polyline(coords, {
+        color: 'red',
+        weight: 3,
+        type: 'boundary',
+        opacity: 0.9,
+        dashArray: '8, 8'  // 虚线样式
+      }).addTo(map);
+      
+      polyline.bindPopup(`边界线 ${line.id}<br>方程: ${line.A.toFixed(4)}x + ${line.B.toFixed(4)}y + ${line.C.toFixed(4)} = 0<br>起点: ${line.start_lng.toFixed(6)}, ${line.start_lat.toFixed(6)}<br>终点: ${line.end_lng.toFixed(6)}, ${line.end_lat.toFixed(6)}`);
+      
+      // 添加边界线标记
+      const midLat = (line.start_lat + line.end_lat) / 2;
+      const midLng = (line.start_lng + line.end_lng) / 2;
+      L.marker([midLat, midLng], {
+        type: 'boundary',
+        icon: L.divIcon({
+          className: 'boundary-marker',
+          html: `<div style="background: red; color: white; border-radius: 3px; width: 18px; height: 18px; text-align: center; line-height: 18px; font-size: 11px;">B${line.id}</div>`,
+          iconSize: [18, 18]
+        })
+      }).addTo(map).bindPopup(`边界线${line.id}`);
+    });
+  }
+  
+  // 自动调整地图视野
+  const allCoords = [];
+  
+  if (data.corn_lines) {
+    data.corn_lines.forEach(line => {
+      allCoords.push([line.start_lat, line.start_lng]);
+      allCoords.push([line.end_lat, line.end_lng]);
+    });
+  }
+  if (data.boundary_lines) {
+    data.boundary_lines.forEach(line => {
+      allCoords.push([line.start_lat, line.start_lng]);
+      allCoords.push([line.end_lat, line.end_lng]);
+    });
+  }
+  
+  if (allCoords.length > 0) {
+    const group = new L.featureGroup(allCoords.map(coord => L.marker(coord)));
+    map.fitBounds(group.getBounds().pad(0.1));
+  }
+}
+  // ================= 临时API接口相关函数 =================
+  // 创建临时API接口
+  function createTempEndpoint() {
+      const endpointName = document.getElementById('endpoint-name').value.trim();
+      const resultDiv = document.getElementById('temp-endpoint-result');
+      
+      if (!endpointName) {
+          alert('请输入接口标识符');
+          return;
+      }
+      
+      // 验证接口名称格式
+      if (!/^[a-zA-Z0-9_]+$/.test(endpointName)) {
+          alert('接口标识符只能包含字母、数字和下划线');
+          return;
+      }
+      
+      // 显示加载状态
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = '<div class="loading">正在创建临时接口...</div>';
+      
+      // 使用API_BASE_URL发送请求
+      fetch(`${API_BASE_URL}/create_temp_endpoint`, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+              endpoint_name: endpointName
+          })
+      })
+      .then(response => response.json())
+      .then(data => {
+          if (data.status === 'success') {
+              resultDiv.innerHTML = `
+                  <div class="success">
+                      <h4>✅ 临时接口创建成功！</h4>
+                      <p><strong>接口URL:</strong></p>
+                      <div class="url-display">
+                          <code>${data.full_url}</code>
+                          <button onclick="copyToClipboard('${data.full_url}')" class="btn-copy">复制</button>
+                      </div>
+                      <p><strong>有效期:</strong> 60秒</p>
+                      <p><strong>创建时间:</strong> ${new Date(data.created_at).toLocaleString()}</p>
+                      <div class="countdown" id="countdown-${endpointName}">剩余时间: 60秒</div>
+                  </div>
+              `;
+              
+              // 启动倒计时
+              startCountdown(endpointName, 60);
+              
+              // 清空输入框
+              document.getElementById('endpoint-name').value = '';
+          } else {
+              resultDiv.innerHTML = `
+                  <div class="error">
+                      <h4>❌ 创建失败</h4>
+                      <p>${data.message}</p>
+                  </div>
+              `;
+          }
+      })
+      .catch(error => {
+          console.error('Error:', error);
+          resultDiv.innerHTML = `
+              <div class="error">
+                  <h4>❌ 网络错误</h4>
+                  <p>请检查网络连接</p>
+              </div>
+          `;
+      });
+  }
+  
+  // 复制到剪贴板
+  function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => {
+          alert('URL已复制到剪贴板');
+      }).catch(err => {
+          console.error('复制失败:', err);
+          // 备用方案
+          const textArea = document.createElement('textarea');
+          textArea.value = text;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+          alert('URL已复制到剪贴板');
+      });
+  }
+  
+  // 倒计时功能
+  function startCountdown(endpointName, seconds) {
+      const countdownElement = document.getElementById(`countdown-${endpointName}`);
+      if (!countdownElement) return;
+      
+      let remaining = seconds;
+      const timer = setInterval(() => {
+          remaining--;
+          if (remaining > 0) {
+              countdownElement.textContent = `剩余时间: ${remaining}秒`;
+              countdownElement.style.color = remaining <= 10 ? '#ff4444' : '#666';
+          } else {
+              countdownElement.textContent = '接口已过期';
+              countdownElement.style.color = '#ff4444';
+              clearInterval(timer);
+          }
+      }, 1000);
+  }
+  // 初始化
+  changeMode();
+</script>
+</body>
+</html>
